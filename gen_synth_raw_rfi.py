@@ -1,4 +1,4 @@
-# ynth_raw.py
+# synth_raw.py
 # creates header_template.raw as original header from generator raw file
 # inputs -> time in mins (see line 'nTotNumBlocks = int(math.ceil((5.*60.) / (nblocsize/obsnchan/2./2./(abs(obsbw)/obsnchan*1000000.))))')
 #                       'logfile.write('chan ' + str(nChan) + ' - Pol#' + str(nPol) + ' - freq0 : ' + str(cenfreq - obsbw'
@@ -40,47 +40,49 @@ if DurationSet < 1.:
         print '... a little short for robust analysis -> increase observation duration'
         sys.exit()
 
+# copy header from original file
 fname = results.initial_file
-fread = open(fname,'rb')                                # open first file of data set
+fread = open(fname,'rb')	# open first file of data set
 fheadertemplate = open(pathtoraw+'/header_template.raw','wb')                           # open first file of data set
 currline = str(fread.read(80))          # reads first line
 fheadertemplate.write(currline)
 nHeaderLines = 1
 
-Ra = [0]*2
-Dec = [0]*2
-Lst = [0]*2
-Az = [0]*2
-Za = [0]*2
-Pktidx = [0]*2
-Dropavg = [0]*2
-Droptot = [0]*2
-Scanrem = [0]*2
-Npkt = [0]*2
+# varying parameters to make observation realistic
+Ra = [0.]*2
+Dec = [0.]*2
+Lst = [0.]*2
+Az = [0.]*2
+Za = [0.]*2
+Pktidx = [0.]*2
+Dropavg = [0.]*2
+Droptot = [0.]*2
+Scanrem = [0.]*2
+Npkt = [0.]*2
 
 while currline[0:3] != 'END':           # until reaching end of header
         currline = str(fread.read(80))  # read new header line
-        if currline[0:9] == 'OBSFREQ =':        # read cenral frequency
+        if currline[0:9] == 'OBSFREQ =':        # read central frequency
                 cenfreq = float(currline[9:])
-        if currline[0:9] == 'RA      =':
+        if currline[0:9] == 'RA      =':		# read RA
                 Ra[0] = float(currline[9:])
-        if currline[0:9] == 'DEC     =':
+        if currline[0:9] == 'DEC     =':		# read DEC
                 Dec[0] = float(currline[9:])
-        if currline[0:9] == 'LST     =':
+        if currline[0:9] == 'LST     =':		# read LST
                 Lst[0] = float(currline[9:])
-        if currline[0:9] == 'AZ      =':
+        if currline[0:9] == 'AZ      =':		# read AZ
                 Az[0] = float(currline[9:])
-        if currline[0:9] == 'ZA      =':
+        if currline[0:9] == 'ZA      =':		# read ZA (elevation)
                 Za[0] = float(currline[9:])
-        if currline[0:9] == 'PKTIDX  =':
+        if currline[0:9] == 'PKTIDX  =':		# read packet index
                 Pktidx[0] = float(currline[9:])
-        if currline[0:9] == 'DROPAVG =':
+        if currline[0:9] == 'DROPAVG =':		# read average dropped packets
                 Dropavg[0] = float(currline[9:])
-        if currline[0:9] == 'DROPTOT =':
+        if currline[0:9] == 'DROPTOT =':		# read total dropped packets
                 Droptot[0] = float(currline[9:])
-        if currline[0:9] == 'SCANREM =':
+        if currline[0:9] == 'SCANREM =':		# read remaining scans
                 Scanrem[0] = float(currline[9:])
-        if currline[0:9] == 'NPKT    =':
+        if currline[0:9] == 'NPKT    =':		# read packet number
                 Npkt[0] = float(currline[9:])
         if currline[0:9] == 'DIRECTIO=':        # read directio flag
                 ndirectio = float(currline[9:])
@@ -94,6 +96,7 @@ while currline[0:3] != 'END':           # until reaching end of header
         fheadertemplate.write(currline)
 fheadertemplate.close()
 
+# number of blocks per raw file for whole observation
 nTotNumBlocks = int(math.ceil((TotObsDuration*60.) / (nblocsize/obsnchan/2./2./(abs(obsbw)/obsnchan*1000000.))))        # total number of blocks for complete observation
 nTotNumSam = nTotNumBlocks * nblocsize / 4      # total number of samples for complete observation
 nBlocksPerFile = [128]*int(math.ceil(nTotNumBlocks/6/128))      # array containing number of blocks per file
@@ -133,6 +136,7 @@ while currline[0:3] != 'END':           # until reaching end of header
 
 fread.close()
 
+# linear extrapolation of observation parameters
 RaVal = float((Ra[1]-Ra[0])/NumBlocs)*np.arange(nTotNumBlocks)
 DecVal = float((Dec[1]-Dec[0])/NumBlocs)*np.arange(nTotNumBlocks)
 LstVal = float((Lst[1]-Lst[0])/NumBlocs)*np.arange(nTotNumBlocks)
@@ -144,12 +148,15 @@ DroptotVal = float((Droptot[1]-Droptot[0])/NumBlocs)*np.arange(nTotNumBlocks)
 ScanremVal = float((Scanrem[1]-Scanrem[0])/NumBlocs)*np.arange(nTotNumBlocks)
 NpktVal = float((Npkt[1]-Npkt[0])/NumBlocs)*np.arange(nTotNumBlocks)
 
+# receiver gain
 ChansGains =  10*np.exp(-(0.05*pow(np.linspace(-(obsnchan-1)/2.,(obsnchan-1)/2.,int(obsnchan)),2)/2))+10        # receiver pass band
 
 logfilename = pathtoraw + '/LogInjection.txt'
 logfile = open(logfilename,'w')
-InjSigPar = np.zeros((2,5,int(obsnchan)))
+InjSigPar = np.zeros((2,5,int(obsnchan)))	# 2 polar, 5 parameters, obsnchan channels
+# parameters are : {drift rate, , , RFI frequency, RFI SNR}
 
+# make sure drift rate not too high
 MaxDrift = float(results.max_drift)*60*TotObsDuration / (abs(obsbw)*(10**6)/obsnchan)   # 5Hz/s * 60s * 30min / BW
 
 if MaxDrift >= float(abs(obsbw)*(10**6)/obsnchan):
@@ -167,7 +174,7 @@ for nChan in range(int(obsnchan)):
                 InjSigPar[nPol][1][nChan] = np.random.uniform(-50,20*np.log10((3*ChansGains[nChan]+10)/ChansGains[nChan]-3),1)
                 InjSigPar[nPol][2][nChan] = np.random.uniform(-MaxDrift,MaxDrift,1)
                 logfile.write('ETI : chan ' + str(nChan) + ' - Pol#' + str(nPol) + ' - freq0 : ' + str(cenfreq - obsbw/2. + (nChan + (InjSigPar[nPol][0][nChan]+0.5))*obsbw/obsnchan) + ' - drift : ' + str(InjSigPar[nPol][2][nChan] * (abs(obsbw)*(10**6)/float(obsnchan)) / 30. / 60.) + ' - SNR : ' + str(InjSigPar[nPol][1][nChan])+'\n')
-                logfile.write('RFI : chan ' + str(nChan) + ' - Pol#' + str(nPol) + ' - freq0 : ' + str(cenfreq - obsbw/2. + (nChan + (InjSigPar[0][3][nChan]+0.5))*obsbw/obsnchan) + ' - drift : ' + str(0) + ' - SNR : ' + str(InjSigPar[nPol][4][nChan])+'\n')
+                logfile.write('RFI : chan ' + str(nChan) + ' - Pol#' + str(nPol) + ' - freq0 : ' + str(cenfreq - obsbw/2. + (nChan + (InjSigPar[nPol][3][nChan]+0.5))*obsbw/obsnchan) + ' - drift : ' + str(0) + ' - SNR : ' + str(InjSigPar[nPol][4][nChan])+'\n')
 logfile.close()
 
 
@@ -180,7 +187,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
         while str(currline[0:3]) != 'END':
                 currline = fheadertemplate.read(80)
                 if str(currline[0:9]) == 'NBITS   =':
-                        NewVal = 8
+                        NewVal = int(8)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -188,7 +195,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'DIRECTIO=':
-                        NewVal = 1
+                        NewVal = int(1)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -196,7 +203,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'OBSERVER=':
-                        NewValStr = 'SETI master'
+                        NewValStr = 'injector'
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
                         teststr = currline[0:9] + ' '*(20+1-len(NewValStr)) + NewValStr
@@ -225,7 +232,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         currline = teststr
 
                 if str(currline[0:9]) == 'RA      =':
-                        NewVal = RAval
+                        NewVal = float(RAval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -233,7 +240,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'DEC     =':
-                        NewVal = DECval
+                        NewVal = float(DECval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -241,7 +248,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'LST     =':
-                        NewVal = LSTval
+                        NewVal = float(LSTval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -249,7 +256,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'AZ      =':
-                        NewVal = AZval
+                        NewVal = float(AZval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -257,7 +264,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'ZA      =':
-                        NewVal = ZAval
+                        NewVal = float(ZAval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -265,7 +272,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'PKTIDX  =':
-                        NewVal = PKTIDXval
+                        NewVal = int(PKTIDXval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -273,7 +280,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'DROPAVG =':
-                        NewVal = DROPAVGval
+                        NewVal = int(DROPAVGval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -281,7 +288,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'DROPTOT =':
-                        NewVal = DROPTOTval
+                        NewVal = int(DROPTOTval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -289,7 +296,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'SCANREM =':
-                        NewVal = SCANREMval
+                        NewVal = int(SCANREMval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -297,7 +304,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
                         teststr = teststr + ' '*(80-len(teststr))
                         currline = teststr
                 if str(currline[0:9]) == 'NPKT    =':
-                        NewVal = NPKTval
+                        NewVal = int(NPKTval)
                         NewValStr = str(NewVal)
                         if len(NewValStr) > 20:
                                 NewValStr = NewValStr[0:20]
@@ -316,7 +323,7 @@ def write_header(output_file,RAval,DECval,LSTval,AZval,ZAval,PKTIDXval,DROPAVGva
 # filF = filF / np.linalg.norm(filF)
 # fil = np.fft.fftshift(np.fft.ifft(filF))
 
-# RFI gains (simulating variations in sidelobes)
+# RFI gains (simulating variations in sidelobes) between scans
 RFIgains = np.random.normal(1,0.1,(6,int(obsnchan)))
 
 
@@ -334,9 +341,9 @@ for nOBS in range(6):   # data set number
                         output_file = open(results.destination+'.ON.00'+str(int(nOBS/10))+str(nOBS%10)+'.00'+str(int(nFile/10))+str(nFile%10)+'.raw',"wb")
                 for nBlock in range(nBlocksPerFile[nFile]):
                         if nOBS % 2:
-                                nHeaderLines = write_header(output_file,RaVal[nBlock]+Ra_offset,DecVal[nBlock]+Dec_offset,LstVal[nBlock],AzVal[nBlock]+AZ_offset,ZaVal[nBlock]+ZA_offset,PktidxVal[nBlock],DropavgVal[nBlock],DroptotVal[nBlock],ScanremVal[nBlock],NpktVal[nBlock],'off target')
+                                nHeaderLines = write_header(output_file,float(RaVal[nTotBlockNum]+Ra_offset),float(DecVal[nTotBlockNum]+Dec_offset),float(LstVal[nTotBlockNum]),float(AzVal[nTotBlockNum]+AZ_offset),float(ZaVal[nTotBlockNum]+ZA_offset),int(PktidxVal[nTotBlockNum]),int(DropavgVal[nTotBlockNum]),int(DroptotVal[nTotBlockNum]),int(ScanremVal[nTotBlockNum]),int(NpktVal[nTotBlockNum]),'off target')
                         else:
-                                nHeaderLines = write_header(output_file,RaVal[nBlock],DecVal[nBlock],LstVal[nBlock],AzVal[nBlock],ZaVal[nBlock],PktidxVal[nBlock],DropavgVal[nBlock],DroptotVal[nBlock],ScanremVal[nBlock],NpktVal[nBlock],'fake source')
+                                nHeaderLines = write_header(output_file,float(RaVal[nTotBlockNum]),float(DecVal[nTotBlockNum]),float(LstVal[nTotBlockNum]),float(AzVal[nTotBlockNum]),float(ZaVal[nTotBlockNum]),int(PktidxVal[nTotBlockNum]),int(DropavgVal[nTotBlockNum]),int(DroptotVal[nTotBlockNum]),int(ScanremVal[nTotBlockNum]),int(NpktVal[nTotBlockNum]),'fake source')
                         nTotBlockNum = nTotBlockNum+1
                         nPadd = int((math.floor(80.*nHeaderLines/512.)+1)*512 - 80*nHeaderLines)
                         output_file.write(' '*nPadd)
