@@ -17,7 +17,7 @@ import argparse
 parser = argparse.ArgumentParser()
 
 parser.add_argument('-r', action='store', dest='initial_file', help='initial raw file')
-parser.add_argument('-d', action='store', dest='destination', help='destination dataset file names')
+parser.add_argument('-d', action='store', dest='destination', help='destination dataset path_to_datasets/root_filenames')
 parser.add_argument('-t', type=float, action='store', dest='duration', help='total observation duration (ABACAD)')
 parser.add_argument('-m', type=float, action='store', dest='max_drift', help='maximum drift rate')
 
